@@ -5,13 +5,13 @@ export type MockRepository<T = any> = Partial<
 >;
 
 export const repositoryMockFactory = <T = any>(): MockRepository<T> => ({
-  findOne: jest.fn((entity) => entity),
+  findOne: jest.fn(),
   save: jest.fn((entity) => entity),
   create: jest.fn((entity) => entity),
-  preload: jest.fn((entity) => entity),
-  findAndCount: jest.fn((entity) => entity),
-  find: jest.fn((entity) => entity),
-  findByIds: jest.fn((entity) => entity),
-  findBy: jest.fn((entity) => entity),
-  remove: jest.fn((entity) => entity),
+  preload: jest.fn(),
+  findAndCount: jest.fn().mockResolvedValue([[], 0]),
+  find: jest.fn().mockResolvedValue([]),
+  findBy: jest.fn().mockResolvedValue([]),
+  remove: jest.fn(),
+  softRemove: jest.fn(),
 });

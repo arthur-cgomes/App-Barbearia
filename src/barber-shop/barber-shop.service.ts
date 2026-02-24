@@ -9,12 +9,15 @@ import { CreateBarberShopDto } from './dto/create-barbershop.dto';
 import { GetAllBarberShopResponseDto } from './dto/get-all-barbershop.dto';
 import { UpdateBarberShopDto } from './dto/update-barbershop.dto';
 import { BarberShop } from './entity/barber-shop.entity';
+import { AuditService } from '../common/audit/audit.service';
+import { Barber } from '../barber/entity/barber.entity';
 
 @Injectable()
 export class BarberShopService {
   constructor(
     @InjectRepository(BarberShop)
     private readonly barbershopRepository: Repository<BarberShop>,
+    private readonly auditService: AuditService,
   ) {}
 
   public async createBarberShop(
@@ -38,12 +41,16 @@ export class BarberShopService {
   ): Promise<BarberShop> {
     await this.getBarberShopById(barbershopId);
 
-    return await (
-      await this.barbershopRepository.preload({
-        id: barbershopId,
-        ...updateBarberShopDto,
-      })
-    ).save();
+    const preloaded = await this.barbershopRepository.preload({
+      id: barbershopId,
+      ...updateBarberShopDto,
+    });
+
+    if (!preloaded) {
+      throw new NotFoundException('barbershop with this id not found');
+    }
+
+    return await preloaded.save();
   }
 
   public async getBarberShopById(barbershopId: string): Promise<BarberShop> {
@@ -75,20 +82,24 @@ export class BarberShopService {
       order: {
         [sort]: order,
       },
+      where: {},
     };
 
     if (document) {
-      conditions.where = { document };
+      conditions.where = { ...(conditions.where as object), document };
     }
 
     if (search) {
-      conditions.where = { name: ILike('%' + search + '%') };
+      conditions.where = {
+        ...(conditions.where as object),
+        name: ILike('%' + search + '%'),
+      };
     }
 
     const [barbershops, count] =
       await this.barbershopRepository.findAndCount(conditions);
 
-    if (barbershops.length == 0) {
+    if (barbershops.length === 0) {
       return { skip: null, total: 0, barbershops };
     }
     const over = count - Number(take) - Number(skip);
@@ -99,8 +110,45 @@ export class BarberShopService {
 
   public async deleteBarberShopById(barbershopId: string): Promise<string> {
     const barberShop = await this.getBarberShopById(barbershopId);
-    await this.barbershopRepository.remove(barberShop);
+    barberShop.active = false;
+    await this.barbershopRepository.softRemove(barberShop);
+    this.auditService.log('BARBERSHOP_DELETED', barbershopId, {
+      name: barberShop.name,
+    });
 
     return 'removed';
+  }
+
+  public async addBarberToShop(
+    barbershopId: string,
+    barber: Barber,
+  ): Promise<BarberShop> {
+    const barbershop = await this.barbershopRepository.findOne({
+      where: { id: barbershopId },
+      relations: ['barber'],
+    });
+    if (!barbershop)
+      throw new NotFoundException('barbershop with this id not found');
+    if (!barbershop.barber) barbershop.barber = [];
+    if (!barbershop.barber.find((b) => b.id === barber.id)) {
+      barbershop.barber.push(barber);
+    }
+    return await this.barbershopRepository.save(barbershop);
+  }
+
+  public async removeBarberFromShop(
+    barbershopId: string,
+    barberId: string,
+  ): Promise<BarberShop> {
+    const barbershop = await this.barbershopRepository.findOne({
+      where: { id: barbershopId },
+      relations: ['barber'],
+    });
+    if (!barbershop)
+      throw new NotFoundException('barbershop with this id not found');
+    barbershop.barber = (barbershop.barber ?? []).filter(
+      (b) => b.id !== barberId,
+    );
+    return await this.barbershopRepository.save(barbershop);
   }
 }

@@ -16,17 +16,32 @@ export class Service extends BaseCollection {
 
   @ApiProperty({
     description: 'Tipo do serviço',
-    type: 'enum',
+    enum: ServiceType,
+    enumName: 'ServiceType',
   })
   @Column({ type: 'enum', enum: ServiceType, default: ServiceType.HAIR })
   type: ServiceType;
 
   @ApiProperty({
-    description: 'Valor do serviço',
-    type: String,
+    description: 'Preço do serviço',
+    type: Number,
   })
-  @Column({ type: 'varchar', default: null, nullable: true })
-  value: string;
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: null,
+    nullable: true,
+  })
+  price: number;
+
+  @ApiProperty({
+    description: 'Duração do serviço em minutos',
+    type: Number,
+    nullable: true,
+  })
+  @Column({ type: 'int', default: null, nullable: true })
+  durationMinutes: number;
 
   @ApiProperty({
     description: 'Relacionamento com a tabela BarberShop',

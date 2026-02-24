@@ -27,14 +27,18 @@ import { BarberDto } from './dto/barber.dto';
 import { CreateBarberDto } from './dto/create-barber.dto';
 import { GetAllBarbersResponseDto } from './dto/get-all-barber-response.dto';
 import { UpdateBarberDto } from './dto/update-barber.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { UserTypeEnum } from '../common/enum/user-type.enum';
 
-@ApiBearerAuth()
 @ApiTags('Barber')
 @Controller('barber')
 export class BarberController {
   constructor(private readonly barberService: BarberService) {}
 
-  @UseGuards(AuthGuard())
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
   @Post()
   @ApiOperation({
     summary: 'Cria um novo barbeiro',
@@ -47,12 +51,14 @@ export class BarberController {
     return await this.barberService.createBarber(createBarberDto);
   }
 
-  @UseGuards(AuthGuard())
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
   @Put('/:barberId')
   @ApiOperation({
     summary: 'Atualiza um barbeiro',
   })
-  @ApiCreatedResponse({ type: BarberDto })
+  @ApiOkResponse({ type: BarberDto })
   @ApiNotFoundResponse({ description: 'Barbeiro não encontrado' })
   @ApiBadRequestResponse({
     description: 'Dados inválidos',
@@ -68,7 +74,7 @@ export class BarberController {
   @ApiOperation({
     summary: 'Retorna um barbeiro pelo id',
   })
-  @ApiCreatedResponse({ type: BarberDto })
+  @ApiOkResponse({ type: BarberDto })
   @ApiNotFoundResponse({ description: 'Barbeiro não encontrado' })
   async getBarberById(@Param('barberId') barberId: string) {
     return await this.barberService.getBarberById(barberId);
@@ -103,7 +109,9 @@ export class BarberController {
     );
   }
 
-  @UseGuards(AuthGuard())
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
   @Delete('/:barberId')
   @ApiOperation({
     summary: 'Exclui um barbeiro',

@@ -6,6 +6,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AuthPayload } from '../interfaces/auth.interface';
 import { mockJwtPayload, mockJwtResponse, mockUser } from './mocks/auth.mock';
+import { AuditService } from '../../common/audit/audit.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -20,6 +21,7 @@ describe('AuthService', () => {
           provide: UserService,
           useValue: {
             checkUserToLogin: jest.fn(),
+            getUserById: jest.fn(),
           },
         },
         {
@@ -27,6 +29,10 @@ describe('AuthService', () => {
           useValue: {
             sign: jest.fn(),
           },
+        },
+        {
+          provide: AuditService,
+          useValue: { log: jest.fn() },
         },
       ],
     }).compile();
@@ -96,7 +102,7 @@ describe('AuthService', () => {
       const result = await service.createJwtPayload(mockUser);
 
       expect(result).toEqual({
-        expiresIn: parseInt(process.env.EXPIRE_IN),
+        expiresIn: parseInt(process.env.EXPIRE_IN) || 7200,
         token: 'jwt_token',
         userId: mockUser.id,
       });
@@ -124,6 +130,17 @@ describe('AuthService', () => {
       await expect(service.validateUserByJwt(mockJwtPayload)).rejects.toThrow(
         UnauthorizedException,
       );
+    });
+  });
+
+  describe('getMe', () => {
+    it('Should return the user profile for a given userId', async () => {
+      jest.spyOn(userService, 'getUserById').mockResolvedValue(mockUser);
+
+      const result = await service.getMe(mockUser.id);
+
+      expect(result).toEqual(mockUser);
+      expect(userService.getUserById).toHaveBeenCalledWith(mockUser.id);
     });
   });
 });

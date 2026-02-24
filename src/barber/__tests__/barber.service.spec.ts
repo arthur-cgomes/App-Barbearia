@@ -14,6 +14,8 @@ import { CreateBarberDto } from '../dto/create-barber.dto';
 import { Barber } from '../entity/barber.entity';
 import { UpdateBarberDto } from '../dto/update-barber.dto';
 import { mockBarber } from './mocks/barber.mock';
+import { AuditService } from '../../common/audit/audit.service';
+
 describe('BarberService', () => {
   let service: BarberService;
   let repositoryMock: MockRepository<Repository<Barber>>;
@@ -25,6 +27,10 @@ describe('BarberService', () => {
         {
           provide: getRepositoryToken(Barber),
           useValue: repositoryMockFactory(),
+        },
+        {
+          provide: AuditService,
+          useValue: { log: jest.fn() },
         },
       ],
     }).compile();
@@ -104,6 +110,17 @@ describe('BarberService', () => {
       ).rejects.toStrictEqual(error);
       expect(repositoryMock.preload).not.toHaveBeenCalled();
     });
+
+    it('Should throw NotFoundException when preload returns null', async () => {
+      const error = new NotFoundException('barber id not found');
+
+      repositoryMock.findOne = jest.fn().mockReturnValue(mockBarber);
+      repositoryMock.preload = jest.fn().mockReturnValue(null);
+
+      await expect(
+        service.updateBarber(mockBarber.id, updateBarberDto),
+      ).rejects.toStrictEqual(error);
+    });
   });
 
   describe('getBarberById', () => {
@@ -139,6 +156,7 @@ describe('BarberService', () => {
         take,
         skip,
         order: { [sort]: order },
+        where: {},
       };
       repositoryMock.findAndCount.mockResolvedValue([[mockBarber], 10]);
 
@@ -243,6 +261,7 @@ describe('BarberService', () => {
         take,
         skip,
         order: { [sort]: order },
+        where: {},
       };
 
       repositoryMock.findAndCount = jest.fn().mockReturnValue([[], 0]);
@@ -272,6 +291,7 @@ describe('BarberService', () => {
         take,
         skip,
         order: { [sort]: order },
+        where: {},
       };
 
       repositoryMock.findAndCount = jest
@@ -307,6 +327,7 @@ describe('BarberService', () => {
         take,
         skip,
         order: { [sort]: order },
+        where: {},
       };
 
       repositoryMock.findAndCount = jest
@@ -334,11 +355,14 @@ describe('BarberService', () => {
   describe('deleteBarberById', () => {
     it('Should successfully delete a barber', async () => {
       repositoryMock.findOne = jest.fn().mockReturnValue(mockBarber);
-      repositoryMock.remove = jest.fn();
+      repositoryMock.softRemove = jest.fn();
 
       const result = await service.deleteBarberById(mockBarber.id);
 
       expect(result).toStrictEqual('removed');
+      expect(repositoryMock.softRemove).toHaveBeenCalledWith(
+        expect.objectContaining({ active: false }),
+      );
     });
 
     it('Should throw a NotFoundException if barber does not exist', async () => {

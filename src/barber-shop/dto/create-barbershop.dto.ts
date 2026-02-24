@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+import { IsCnpj } from '../../common/validators/is-cnpj.validator';
 
 export class CreateBarberShopDto {
   @ApiProperty({
@@ -16,6 +23,7 @@ export class CreateBarberShopDto {
   })
   @IsNotEmpty()
   @IsString()
+  @IsCnpj()
   document: string;
 
   @ApiProperty({
@@ -28,19 +36,19 @@ export class CreateBarberShopDto {
 
   @ApiProperty({
     description: 'Latitude da barbearia',
-    type: String,
+    type: Number,
   })
-  @IsNotEmpty()
-  @IsString()
-  lat: string;
+  @IsOptional()
+  @IsNumber()
+  lat: number;
 
   @ApiProperty({
     description: 'Longitude da barbearia',
-    type: String,
+    type: Number,
   })
-  @IsNotEmpty()
-  @IsString()
-  long: string;
+  @IsOptional()
+  @IsNumber()
+  long: number;
 
   @ApiProperty({
     description: 'Número da barbearia',

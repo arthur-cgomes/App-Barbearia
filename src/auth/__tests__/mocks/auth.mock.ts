@@ -3,10 +3,12 @@ import {
   JwtPayload,
   JwtResponse,
 } from '../../interfaces/jwt-payload.interface';
+import { UserTypeEnum } from '../../../common/enum/user-type.enum';
 
 export const mockJwtPayload: JwtPayload = {
   email: 'arthur.gomes@dev.com.br',
   userId: '7ed5c779-2b02-4a29-a47d-3806930fa7b6',
+  userType: UserTypeEnum.ADMIN,
 };
 
 export const mockJwtResponse: JwtResponse = {

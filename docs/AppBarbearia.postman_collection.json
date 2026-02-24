@@ -1,0 +1,616 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "AppBarbearia",
+    "description": "REST API collection for App Barbearia — Barbershop Management System.\n\nBase URL: {{baseUrl}} (default: http://localhost:3000)\n\nAuthentication: After calling POST Login, copy the returned `token` field into the `token` collection variable.\n\nRoles:\n- ADMIN: full access — can create/update/delete barbershops, barbers, services; view all schedulings\n- BARBER: authenticated access to schedulings and own profile\n- USER: create own account, manage own profile, create and view only their own schedulings\n- (public): read-only access to barbers, barbershops, and services\n\nRate Limiting:\n- Global: 60 requests / 60 seconds\n- POST /auth (login): 5 requests / 60 seconds — returns 429 after exceeded\n\nSoft Delete:\n- All DELETE endpoints perform a soft delete — records are preserved with active=false and deletedAt timestamp.\n- Deleted records are automatically excluded from all list/get queries.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "userId", "value": "00000000-0000-0000-0000-000000000001", "type": "string" },
+    { "key": "barbershopId", "value": "00000000-0000-0000-0000-000000000002", "type": "string" },
+    { "key": "barberId", "value": "00000000-0000-0000-0000-000000000003", "type": "string" },
+    { "key": "serviceId", "value": "00000000-0000-0000-0000-000000000004", "type": "string" },
+    { "key": "schedulingId", "value": "00000000-0000-0000-0000-000000000005", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@barbearia.com\",\n  \"password\": \"Admin@123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth"]
+            },
+            "description": "Authenticates a user and returns a JWT Bearer token. Copy the `token` value into the collection variable `token`.\n\nRate limited to 5 requests per 60 seconds — returns 429 Too Many Requests after exceeded."
+          }
+        },
+        {
+          "name": "GET Current User (me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Returns the full profile of the currently authenticated user, based on the JWT token. Requires a valid Bearer token."
+          }
+        },
+        {
+          "name": "PATCH Reset Password",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"birthdate\": \"1990-05-15\",\n  \"document\": \"123.456.789-09\",\n  \"newPassword\": \"NewPass@123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "reset-password"]
+            },
+            "description": "Resets the authenticated user's password using birthdate and CPF as verification. Requires a valid JWT token.\n\n`document` must be a valid CPF (validated with digit verifier algorithm)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "item": [
+        {
+          "name": "POST Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"João Silva\",\n  \"birthdate\": \"1990-05-15\",\n  \"document\": \"123.456.789-09\",\n  \"email\": \"joao.silva@email.com\",\n  \"password\": \"Senha@123\",\n  \"cellphone\": \"(31)99999-9999\",\n  \"userType\": \"user\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user",
+              "host": ["{{baseUrl}}"],
+              "path": ["user"]
+            },
+            "description": "Creates a new user account. No authentication required.\n\n`userType` can be `admin`, `barber`, or `user` (default: `user`).\n\n`document` must be a valid CPF — validated with the full digit verifier algorithm. Accepted formats: `123.456.789-09` or `12345678909`."
+          }
+        },
+        {
+          "name": "PUT Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"João Silva Atualizado\",\n  \"cellphone\": \"(31)88888-8888\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "{{userId}}"]
+            },
+            "description": "Updates an existing user's data. All fields are optional. Requires authentication."
+          }
+        },
+        {
+          "name": "GET User by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "{{userId}}"]
+            },
+            "description": "Returns a user by their UUID. Requires authentication."
+          }
+        },
+        {
+          "name": "GET All Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user?take=10&skip=0&sort=name&order=ASC",
+              "host": ["{{baseUrl}}"],
+              "path": ["user"],
+              "query": [
+                { "key": "take", "value": "10", "description": "Number of records to return" },
+                { "key": "skip", "value": "0", "description": "Number of records to skip (offset)" },
+                { "key": "sort", "value": "name", "description": "Field to sort by" },
+                { "key": "order", "value": "ASC", "description": "Sort direction: ASC or DESC" },
+                { "key": "search", "value": "", "description": "Search term to filter by name (ILIKE)", "disabled": true }
+              ]
+            },
+            "description": "Returns a paginated list of users. Requires authentication."
+          }
+        },
+        {
+          "name": "DELETE User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "{{userId}}"]
+            },
+            "description": "Soft-deletes a user by their UUID. The record is preserved in the database with `active = false` and `deletedAt` timestamp set — it will no longer appear in list or get queries. Requires authentication."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Barber",
+      "item": [
+        {
+          "name": "POST Create Barber",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Carlos Oliveira\",\n  \"document\": \"987.654.321-00\",\n  \"email\": \"carlos.barber@barbearia.com\",\n  \"cellphone\": \"(31)97777-7777\",\n  \"barbershopId\": \"{{barbershopId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/barber",
+              "host": ["{{baseUrl}}"],
+              "path": ["barber"]
+            },
+            "description": "Creates a new barber profile linked to a barbershop. Requires authentication and ADMIN role.\n\n`document` must be a valid CPF — validated with the full digit verifier algorithm. Accepted formats: `987.654.321-00` or `98765432100`."
+          }
+        },
+        {
+          "name": "PUT Update Barber",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Carlos Oliveira Jr\",\n  \"cellphone\": \"(31)96666-6666\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/barber/{{barberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["barber", "{{barberId}}"]
+            },
+            "description": "Updates an existing barber's data. All fields are optional. Requires authentication and ADMIN role."
+          }
+        },
+        {
+          "name": "GET Barber by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/barber/{{barberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["barber", "{{barberId}}"]
+            },
+            "description": "Returns a barber by their UUID. Public endpoint — no authentication required."
+          }
+        },
+        {
+          "name": "GET All Barbers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/barber?take=10&skip=0&sort=name&order=ASC",
+              "host": ["{{baseUrl}}"],
+              "path": ["barber"],
+              "query": [
+                { "key": "take", "value": "10", "description": "Number of records to return" },
+                { "key": "skip", "value": "0", "description": "Number of records to skip (offset)" },
+                { "key": "sort", "value": "name", "description": "Field to sort by" },
+                { "key": "order", "value": "ASC", "description": "Sort direction: ASC or DESC" },
+                { "key": "barbershopId", "value": "", "description": "Filter by barbershop UUID", "disabled": true },
+                { "key": "search", "value": "", "description": "Search term to filter by name (ILIKE)", "disabled": true }
+              ]
+            },
+            "description": "Returns a paginated list of barbers. Public endpoint — no authentication required."
+          }
+        },
+        {
+          "name": "DELETE Barber",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/barber/{{barberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["barber", "{{barberId}}"]
+            },
+            "description": "Soft-deletes a barber by their UUID. The record is preserved in the database with `active = false` and `deletedAt` timestamp set — it will no longer appear in list or get queries. Requires authentication and ADMIN role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Barber-Shop",
+      "item": [
+        {
+          "name": "POST Create Barber Shop",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Barbearia do Arthur\",\n  \"document\": \"12.345.678/0001-99\",\n  \"address\": \"Rua Principal, 123, Belo Horizonte, MG\",\n  \"lat\": -19.9191,\n  \"long\": -43.9386,\n  \"cellphone\": \"(31)3333-3333\",\n  \"email\": \"contato@barbearia.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/barbershop",
+              "host": ["{{baseUrl}}"],
+              "path": ["barbershop"]
+            },
+            "description": "Creates a new barbershop. Requires authentication and ADMIN role.\n\n`document` must be a valid CNPJ — validated with the full digit verifier algorithm. Accepted formats: `12.345.678/0001-99` or `12345678000199`.\n\n`lat` and `long` are optional geographic coordinates."
+          }
+        },
+        {
+          "name": "PUT Update Barber Shop",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Barbearia Premium\",\n  \"address\": \"Avenida das Flores, 456, Belo Horizonte, MG\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/barbershop/{{barbershopId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["barbershop", "{{barbershopId}}"]
+            },
+            "description": "Updates an existing barbershop's data. All fields are optional. Requires authentication and ADMIN role."
+          }
+        },
+        {
+          "name": "GET Barber Shop by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/barbershop/{{barbershopId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["barbershop", "{{barbershopId}}"]
+            },
+            "description": "Returns a barbershop by its UUID. Public endpoint — no authentication required."
+          }
+        },
+        {
+          "name": "GET All Barber Shops",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/barbershop?take=10&skip=0&sort=name&order=ASC",
+              "host": ["{{baseUrl}}"],
+              "path": ["barbershop"],
+              "query": [
+                { "key": "take", "value": "10", "description": "Number of records to return" },
+                { "key": "skip", "value": "0", "description": "Number of records to skip (offset)" },
+                { "key": "sort", "value": "name", "description": "Field to sort by" },
+                { "key": "order", "value": "ASC", "description": "Sort direction: ASC or DESC" },
+                { "key": "document", "value": "", "description": "Filter by CNPJ", "disabled": true },
+                { "key": "search", "value": "", "description": "Search term to filter by name (ILIKE)", "disabled": true }
+              ]
+            },
+            "description": "Returns a paginated list of barbershops. Public endpoint — no authentication required."
+          }
+        },
+        {
+          "name": "DELETE Barber Shop",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/barbershop/{{barbershopId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["barbershop", "{{barbershopId}}"]
+            },
+            "description": "Soft-deletes a barbershop by its UUID. The record is preserved in the database with `active = false` and `deletedAt` timestamp set — it will no longer appear in list or get queries. Requires authentication and ADMIN role."
+          }
+        },
+        {
+          "name": "POST Associate Barber to Barbershop",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/barbershop/{{barbershopId}}/barbers/{{barberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["barbershop", "{{barbershopId}}", "barbers", "{{barberId}}"]
+            },
+            "description": "Associates an existing barber with a barbershop. No request body required — both IDs are passed as path parameters.\n\nReturns 409 Conflict if the barber is already associated with the barbershop.\nReturns 404 if either the barbershop or barber does not exist.\n\nRequires authentication and ADMIN role."
+          }
+        },
+        {
+          "name": "DELETE Remove Barber from Barbershop",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/barbershop/{{barbershopId}}/barbers/{{barberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["barbershop", "{{barbershopId}}", "barbers", "{{barberId}}"]
+            },
+            "description": "Removes the association between a barber and a barbershop. This does not delete either entity — only the relationship is removed.\n\nReturns 404 if the barbershop, the barber, or the association does not exist.\n\nRequires authentication and ADMIN role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Service",
+      "item": [
+        {
+          "name": "POST Create Service",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Corte de Cabelo\",\n  \"type\": \"hair\",\n  \"price\": 35.00,\n  \"durationMinutes\": 30,\n  \"barberShopId\": \"{{barbershopId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service",
+              "host": ["{{baseUrl}}"],
+              "path": ["service"]
+            },
+            "description": "Creates a new service for a barbershop. Requires authentication and ADMIN role.\n\n`type` must be one of: `hair`, `beard`, `eyebrow`, `skincare`, `other`.\n`price` is a decimal number (e.g. `35.00`), minimum `0`.\n`durationMinutes` is optional (integer, minimum `1`). If not provided, defaults to `60` for scheduling conflict detection."
+          }
+        },
+        {
+          "name": "PUT Update Service",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Corte Degradê\",\n  \"price\": 40.00,\n  \"durationMinutes\": 45\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service", "{{serviceId}}"]
+            },
+            "description": "Updates an existing service. All fields are optional. Requires authentication and ADMIN role.\n\n`price` is a decimal number (e.g. `40.00`).\n`durationMinutes` is an integer (minimum `1`)."
+          }
+        },
+        {
+          "name": "GET Service by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service", "{{serviceId}}"]
+            },
+            "description": "Returns a service by its UUID. Public endpoint — no authentication required."
+          }
+        },
+        {
+          "name": "GET All Services",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service?take=10&skip=0&sort=name&order=ASC",
+              "host": ["{{baseUrl}}"],
+              "path": ["service"],
+              "query": [
+                { "key": "take", "value": "10", "description": "Number of records to return" },
+                { "key": "skip", "value": "0", "description": "Number of records to skip (offset)" },
+                { "key": "sort", "value": "name", "description": "Field to sort by" },
+                { "key": "order", "value": "ASC", "description": "Sort direction: ASC or DESC" },
+                { "key": "barberShopId", "value": "", "description": "Filter by barbershop UUID", "disabled": true },
+                { "key": "search", "value": "", "description": "Search term to filter by name (ILIKE)", "disabled": true }
+              ]
+            },
+            "description": "Returns a paginated list of services. Public endpoint — no authentication required."
+          }
+        },
+        {
+          "name": "DELETE Service",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/service/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service", "{{serviceId}}"]
+            },
+            "description": "Soft-deletes a service by its UUID. The record is preserved in the database with `active = false` and `deletedAt` timestamp set — it will no longer appear in list or get queries. Requires authentication and ADMIN role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scheduling",
+      "item": [
+        {
+          "name": "POST Create Scheduling",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"barberShopId\": \"{{barbershopId}}\",\n  \"barberId\": \"{{barberId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"date\": \"2026-03-01T10:00:00.000Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/scheduling",
+              "host": ["{{baseUrl}}"],
+              "path": ["scheduling"]
+            },
+            "description": "Creates a new appointment. Requires authentication.\n\nCreated with status `pending` by default.\n\nConflict detection: the API loads the selected service's `durationMinutes` (defaults to 60 if not set), calculates `endTime = date + durationMinutes`, and checks if the same barber already has an overlapping scheduling at that barbershop. Returns 409 Conflict if a time overlap is found."
+          }
+        },
+        {
+          "name": "PUT Update Scheduling",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-03-01T14:00:00.000Z\",\n  \"status\": \"confirmed\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/scheduling/{{schedulingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["scheduling", "{{schedulingId}}"]
+            },
+            "description": "Updates an existing scheduling. All fields are optional. Requires authentication.\n\n`status` values: `pending`, `confirmed`, `completed`, `cancelled`, `no_show`.\n\nStatus lifecycle: PENDING → CONFIRMED → COMPLETED / CANCELLED / NO_SHOW"
+          }
+        },
+        {
+          "name": "GET Scheduling by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/scheduling/{{schedulingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["scheduling", "{{schedulingId}}"]
+            },
+            "description": "Returns a scheduling by its UUID. Requires authentication."
+          }
+        },
+        {
+          "name": "GET All Schedulings",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/scheduling?take=10&skip=0&sort=date&order=ASC",
+              "host": ["{{baseUrl}}"],
+              "path": ["scheduling"],
+              "query": [
+                { "key": "take", "value": "10", "description": "Number of records to return" },
+                { "key": "skip", "value": "0", "description": "Number of records to skip (offset)" },
+                { "key": "sort", "value": "date", "description": "Field to sort by" },
+                { "key": "order", "value": "ASC", "description": "Sort direction: ASC or DESC" },
+                { "key": "userId", "value": "", "description": "Filter by user UUID (ADMIN only — USER role always sees only their own schedulings)", "disabled": true },
+                { "key": "barberId", "value": "", "description": "Filter by barber UUID", "disabled": true },
+                { "key": "barberShopId", "value": "", "description": "Filter by barbershop UUID", "disabled": true },
+                { "key": "status", "value": "pending", "description": "Filter by status: pending | confirmed | completed | cancelled | no_show", "disabled": true }
+              ]
+            },
+            "description": "Returns a paginated list of schedulings. Requires authentication.\n\nRBAC filtering:\n- ADMIN: sees all schedulings\n- BARBER: sees schedulings assigned to them\n- USER: sees only their own schedulings (userId filter is automatically overridden)\n\nOptionally filter by `status`: `pending`, `confirmed`, `completed`, `cancelled`, `no_show`."
+          }
+        },
+        {
+          "name": "DELETE Scheduling",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/scheduling/{{schedulingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["scheduling", "{{schedulingId}}"]
+            },
+            "description": "Soft-deletes a scheduling by its UUID. The record is preserved in the database with `active = false`, `deletedAt` timestamp set, and `status` changed to `cancelled`. Requires authentication."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Public health check endpoint — no authentication required.\n\nChecks:\n- Database: PostgreSQL ping must succeed\n- Memory Heap: must be under 300 MB\n\nReturns 200 OK when healthy, 503 Service Unavailable when any check fails.\n\nUseful for load balancer health checks and uptime monitoring."
+          }
+        }
+      ]
+    }
+  ]
+}

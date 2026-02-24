@@ -28,7 +28,6 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDto } from './dto/user.dto';
 import { UserService } from './user.service';
 
-@ApiBearerAuth()
 @ApiTags('User')
 @Controller('user')
 export class UserController {
@@ -46,6 +45,7 @@ export class UserController {
     return await this.userService.createUser(createUserDto);
   }
 
+  @ApiBearerAuth()
   @UseGuards(AuthGuard())
   @Put('/:userId')
   @ApiOperation({
@@ -63,6 +63,8 @@ export class UserController {
     return await this.userService.updateUser(userId, updateUserDto);
   }
 
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard())
   @Get('/:userId')
   @ApiOperation({
     summary: 'Retorna um usuário pelo id',
@@ -73,6 +75,8 @@ export class UserController {
     return await this.userService.getUserById(userId);
   }
 
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard())
   @Get()
   @ApiOperation({
     summary: 'Retorna todos usuários',
@@ -93,6 +97,7 @@ export class UserController {
     return await this.userService.getAllUsers(take, skip, sort, order, search);
   }
 
+  @ApiBearerAuth()
   @UseGuards(AuthGuard())
   @Delete('/:userId')
   @ApiOperation({

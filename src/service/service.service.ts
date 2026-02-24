@@ -9,25 +9,27 @@ import { CreateServiceDto } from './dto/create-service.dto';
 import { GetAllServicesResponseDto } from './dto/get-all-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { Service } from './entity/service.entity';
+import { AuditService } from '../common/audit/audit.service';
 
 @Injectable()
 export class ServicesService {
   constructor(
     @InjectRepository(Service)
     private readonly servicesRepository: Repository<Service>,
+    private readonly auditService: AuditService,
   ) {}
 
   public async createService(
     createServiceDto: CreateServiceDto,
   ): Promise<Service> {
-    const chekService = await this.servicesRepository.findOne({
-      where: [
-        { name: createServiceDto.name },
-        { barberShop: { id: createServiceDto.barberShopId } },
-      ],
+    const checkService = await this.servicesRepository.findOne({
+      where: {
+        name: createServiceDto.name,
+        barberShop: { id: createServiceDto.barberShopId },
+      },
     });
 
-    if (chekService) {
+    if (checkService) {
       throw new ConflictException('services with that name already exists');
     }
 
@@ -40,12 +42,16 @@ export class ServicesService {
   ): Promise<Service> {
     await this.getServiceById(serviceId);
 
-    return await (
-      await this.servicesRepository.preload({
-        id: serviceId,
-        ...updateServiceDto,
-      })
-    ).save();
+    const preloaded = await this.servicesRepository.preload({
+      id: serviceId,
+      ...updateServiceDto,
+    });
+
+    if (!preloaded) {
+      throw new NotFoundException('service with this id not found');
+    }
+
+    return await preloaded.save();
   }
 
   public async getServiceById(serviceId: string): Promise<Service> {
@@ -77,19 +83,22 @@ export class ServicesService {
 
     if (barberShopId) {
       conditions.where = {
-        ...conditions.where,
+        ...(conditions.where as object),
         barberShop: { id: barberShopId },
       };
     }
 
     if (search) {
-      conditions.where = { name: ILike('%' + search + '%') };
+      conditions.where = {
+        ...(conditions.where as object),
+        name: ILike('%' + search + '%'),
+      };
     }
 
     const [services, count] =
       await this.servicesRepository.findAndCount(conditions);
 
-    if (services.length == 0) {
+    if (services.length === 0) {
       return { skip: null, total: 0, services };
     }
     const over = count - Number(take) - Number(skip);
@@ -100,7 +109,8 @@ export class ServicesService {
 
   public async deleteServiceById(serviceId: string): Promise<string> {
     const deleteService = await this.getServiceById(serviceId);
-    await this.servicesRepository.remove(deleteService);
+    deleteService.active = false;
+    await this.servicesRepository.softRemove(deleteService);
 
     return 'removed';
   }

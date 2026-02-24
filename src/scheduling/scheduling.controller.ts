@@ -7,6 +7,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
 } from '@nestjs/common';
 import { UseGuards } from '@nestjs/common/decorators';
 import { AuthGuard } from '@nestjs/passport';
@@ -27,6 +28,7 @@ import { GetAllSchedulingResponseDto } from './dto/get-all-scheduling-response.d
 import { SchedulingDto } from './dto/scheduling.dto';
 import { UpdateSchedulingDto } from './dto/update-scheduling.dto';
 import { SchedulingService } from './scheduling.service';
+import { SchedulingStatus } from '../common/enum/scheduling-status.enum';
 
 @ApiBearerAuth()
 @ApiTags('Scheduling')
@@ -67,6 +69,7 @@ export class SchedulingController {
     );
   }
 
+  @UseGuards(AuthGuard())
   @Get('/:schedulingId')
   @ApiOperation({
     summary: 'Busca um horário pelo id',
@@ -79,9 +82,12 @@ export class SchedulingController {
     return await this.schedulingService.getSchedulingById(schedulingId);
   }
 
+  @UseGuards(AuthGuard())
   @Get()
   @ApiOperation({
     summary: 'Retorna todos os horários',
+    description:
+      'Usuários com role USER veem apenas seus próprios agendamentos.',
   })
   @ApiQuery({ name: 'take', required: false })
   @ApiQuery({ name: 'skip', required: false })
@@ -90,8 +96,10 @@ export class SchedulingController {
   @ApiQuery({ name: 'userId', required: false })
   @ApiQuery({ name: 'barberId', required: false })
   @ApiQuery({ name: 'barberShopId', required: false })
+  @ApiQuery({ name: 'status', required: false, enum: SchedulingStatus })
   @ApiOkResponse({ type: GetAllSchedulingResponseDto })
-  async getAllUsers(
+  async getAllSchedulings(
+    @Req() req: any,
     @Query('take') take = 10,
     @Query('skip') skip = 0,
     @Query('sort') sort = 'date',
@@ -99,6 +107,7 @@ export class SchedulingController {
     @Query('userId') userId?: string,
     @Query('barberId') barberId?: string,
     @Query('barberShopId') barberShopId?: string,
+    @Query('status') status?: SchedulingStatus,
   ) {
     return await this.schedulingService.getAllSchedulings(
       take,
@@ -108,13 +117,16 @@ export class SchedulingController {
       userId,
       barberId,
       barberShopId,
+      status,
+      req.user?.userId,
+      req.user?.userType,
     );
   }
 
   @UseGuards(AuthGuard())
   @Delete('/:schedulingId')
   @ApiOperation({
-    summary: 'Exclui um horário',
+    summary: 'Cancela um agendamento (soft delete)',
   })
   @ApiOkResponse({ type: DeleteResponseDto })
   @ApiNotFoundResponse({ description: 'Horário não encontrado' })

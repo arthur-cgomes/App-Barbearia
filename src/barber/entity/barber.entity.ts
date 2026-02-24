@@ -8,10 +8,12 @@ import {
   Entity,
   ManyToMany,
   OneToMany,
+  Unique,
 } from 'typeorm';
 import { Scheduling } from '../../scheduling/entity/scheduling.entity';
 
 @Entity()
+@Unique(['email', 'document'])
 export class Barber extends BaseCollection {
   @ApiProperty({
     description: 'Nome do barbeiro',

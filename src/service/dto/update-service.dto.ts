@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { ServiceType } from '../../common/enum/service-type.enum';
 
 export class UpdateServiceDto {
@@ -13,17 +20,29 @@ export class UpdateServiceDto {
 
   @ApiProperty({
     description: 'Tipo do serviço',
-    type: 'enum',
+    enum: ServiceType,
+    enumName: 'ServiceType',
   })
   @IsOptional()
-  @IsEnum({ type: 'enum', enum: ServiceType })
+  @IsEnum(ServiceType)
   type: ServiceType;
 
   @ApiProperty({
-    description: 'Valor do serviço',
-    type: String,
+    description: 'Preço do serviço',
+    type: Number,
   })
   @IsOptional()
-  @IsString()
-  value: string;
+  @IsNumber()
+  @Min(0)
+  price: number;
+
+  @ApiProperty({
+    description: 'Duração do serviço em minutos',
+    type: Number,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  durationMinutes?: number;
 }

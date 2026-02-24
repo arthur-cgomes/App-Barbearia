@@ -7,6 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import { JwtPayload, JwtResponse } from './interfaces/jwt-payload.interface';
 import { AuthPayload } from './interfaces/auth.interface';
 import { UserService } from '../user/user.service';
+import { AuditService } from '../common/audit/audit.service';
 import { User } from '../user/entity/user.entity';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class AuthService {
   constructor(
     private userService: UserService,
     private jwtService: JwtService,
+    private auditService: AuditService,
   ) {}
 
   async validateUserByPassword(
@@ -24,9 +26,17 @@ export class AuthService {
     );
 
     return new Promise((resolve, reject) => {
-      if (userToAttempt.checkPassword(loginAttempt.password))
+      if (userToAttempt.checkPassword(loginAttempt.password)) {
+        this.auditService.log('LOGIN_SUCCESS', userToAttempt.id, {
+          email: loginAttempt.email,
+        });
         resolve(this.createJwtPayload(userToAttempt));
-      else reject(new ForbiddenException('Senha inválida'));
+      } else {
+        this.auditService.log('LOGIN_FAILED', 'anonymous', {
+          email: loginAttempt.email,
+        });
+        reject(new ForbiddenException('Senha inválida'));
+      }
     });
   }
 
@@ -34,10 +44,11 @@ export class AuthService {
     const data: JwtPayload = {
       email: user.email,
       userId: user.id,
+      userType: user.userType,
     };
     const jwt = this.jwtService.sign(data);
     return {
-      expiresIn: parseInt(process.env.EXPIRE_IN),
+      expiresIn: parseInt(process.env.EXPIRE_IN) || 7200,
       token: jwt,
       userId: user.id,
     };
@@ -50,5 +61,9 @@ export class AuthService {
     } else {
       throw new UnauthorizedException('Token inválido');
     }
+  }
+
+  async getMe(userId: string): Promise<User> {
+    return await this.userService.getUserById(userId);
   }
 }

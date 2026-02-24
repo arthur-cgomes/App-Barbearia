@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDate, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsOptional, IsString } from 'class-validator';
+import { SchedulingStatus } from '../../common/enum/scheduling-status.enum';
 
 export class UpdateSchedulingDto {
   @ApiProperty({
@@ -33,4 +34,14 @@ export class UpdateSchedulingDto {
   @IsOptional()
   @IsDate()
   date: Date;
+
+  @ApiProperty({
+    description: 'Status do agendamento',
+    enum: SchedulingStatus,
+    enumName: 'SchedulingStatus',
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(SchedulingStatus)
+  status?: SchedulingStatus;
 }

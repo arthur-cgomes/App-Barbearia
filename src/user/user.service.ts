@@ -9,17 +9,19 @@ import { FindManyOptions, ILike, In, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { GetAllUsersResponseDto } from './dto/get-all-user-response.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { AuditService } from '../common/audit/audit.service';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(User) private readonly userRepository: Repository<User>,
+    private readonly auditService: AuditService,
   ) {}
 
   async checkUserToLogin(email: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { email },
-      select: ['id', 'email', 'password'],
+      select: ['id', 'email', 'password', 'userType'],
     });
 
     if (!user) throw new NotFoundException('user with this email not found');
@@ -44,6 +46,9 @@ export class UserService {
 
     user.password = newPassword;
     await this.userRepository.save(user);
+    this.auditService.log('PASSWORD_RESET', user.id, {
+      document: user.document,
+    });
   }
 
   public async createUser(createUserDto: CreateUserDto): Promise<User> {
@@ -58,7 +63,9 @@ export class UserService {
       throw new ConflictException('user already exists');
     }
 
-    return await this.userRepository.create(createUserDto).save();
+    const user = await this.userRepository.create(createUserDto).save();
+    this.auditService.log('USER_CREATED', user.id, { email: user.email });
+    return user;
   }
 
   public async updateUser(
@@ -67,12 +74,16 @@ export class UserService {
   ): Promise<User> {
     await this.getUserById(userId);
 
-    return await (
-      await this.userRepository.preload({
-        id: userId,
-        ...updateUserDto,
-      })
-    ).save();
+    const preloaded = await this.userRepository.preload({
+      id: userId,
+      ...updateUserDto,
+    });
+
+    if (!preloaded) {
+      throw new NotFoundException('user with this id not found');
+    }
+
+    return await preloaded.save();
   }
 
   public async getUserById(userId: string): Promise<User> {
@@ -114,7 +125,7 @@ export class UserService {
 
     const [users, count] = await this.userRepository.findAndCount(conditions);
 
-    if (users.length == 0) {
+    if (users.length === 0) {
       return { skip: null, total: 0, users };
     }
     const over = count - Number(take) - Number(skip);
@@ -125,7 +136,9 @@ export class UserService {
 
   public async deleteUserById(userId: string): Promise<string> {
     const user = await this.getUserById(userId);
-    await this.userRepository.remove(user);
+    user.active = false;
+    await this.userRepository.softRemove(user);
+    this.auditService.log('USER_DELETED', userId, { email: user.email });
 
     return 'removed';
   }

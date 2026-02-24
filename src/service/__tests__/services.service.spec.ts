@@ -11,6 +11,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { UpdateServiceDto } from '../dto/update-service.dto';
 import { ServiceType } from '../../common/enum/service-type.enum';
 import { mockService } from './mocks/service.mock';
+import { AuditService } from '../../common/audit/audit.service';
 
 describe('ServicesService', () => {
   let service: ServicesService;
@@ -23,6 +24,10 @@ describe('ServicesService', () => {
         {
           provide: getRepositoryToken(Service),
           useValue: repositoryMockFactory<Service>(),
+        },
+        {
+          provide: AuditService,
+          useValue: { log: jest.fn() },
         },
       ],
     }).compile();
@@ -38,7 +43,7 @@ describe('ServicesService', () => {
     const createServicesDto = {
       name: 'name',
       type: ServiceType.HAIR,
-      value: 'value',
+      price: 50,
       barberShopId: 'barberShopId',
     };
 
@@ -74,7 +79,7 @@ describe('ServicesService', () => {
     const updateServiceDto: UpdateServiceDto = {
       name: 'name',
       type: ServiceType.HAIR,
-      value: 'value',
+      price: 50,
     };
     it('Should successfully update service', async () => {
       repositoryMock.findOne = jest.fn().mockReturnValue(mockService);
@@ -102,6 +107,17 @@ describe('ServicesService', () => {
         service.updateService(mockService.id, updateServiceDto),
       ).rejects.toStrictEqual(error);
       expect(repositoryMock.preload).not.toHaveBeenCalled();
+    });
+
+    it('Should throw NotFoundException when preload returns null', async () => {
+      const error = new NotFoundException('service with this id not found');
+
+      repositoryMock.findOne = jest.fn().mockReturnValue(mockService);
+      repositoryMock.preload = jest.fn().mockReturnValue(null);
+
+      await expect(
+        service.updateService(mockService.id, updateServiceDto),
+      ).rejects.toStrictEqual(error);
     });
   });
 
@@ -332,12 +348,15 @@ describe('ServicesService', () => {
 
   describe('deleteService', () => {
     it('Should successfully delete a service', async () => {
-      repositoryMock.findOne = jest.fn().mockReturnValue(service);
-      repositoryMock.remove = jest.fn();
+      repositoryMock.findOne = jest.fn().mockReturnValue(mockService);
+      repositoryMock.softRemove = jest.fn();
 
       const result = await service.deleteServiceById(mockService.id);
 
       expect(result).toStrictEqual('removed');
+      expect(repositoryMock.softRemove).toHaveBeenCalledWith(
+        expect.objectContaining({ active: false }),
+      );
     });
 
     it('Should throw the NotFoundException exception when service id not found', async () => {

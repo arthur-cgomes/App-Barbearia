@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class UpdateBarberShopDto {
   @ApiProperty({
@@ -28,19 +28,19 @@ export class UpdateBarberShopDto {
 
   @ApiProperty({
     description: 'Latitude da barbearia',
-    type: String,
+    type: Number,
   })
   @IsOptional()
-  @IsString()
-  lat: string;
+  @IsNumber()
+  lat: number;
 
   @ApiProperty({
     description: 'Longitude da barbearia',
-    type: String,
+    type: Number,
   })
   @IsOptional()
-  @IsString()
-  long: string;
+  @IsNumber()
+  long: number;
 
   @ApiProperty({
     description: 'Número da barbearia',

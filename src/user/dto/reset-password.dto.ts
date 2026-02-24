@@ -19,10 +19,10 @@ export class ResetPasswordDto {
   document: string;
 
   @ApiProperty({
-    description: 'Email do usuário',
+    description: 'Nova senha do usuário',
     type: String,
   })
   @IsNotEmpty()
-  @MinLength(6)
+  @MinLength(8)
   newPassword: string;
 }

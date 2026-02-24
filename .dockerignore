@@ -1,0 +1,30 @@
+# Dependencies (reinstalled inside the container)
+node_modules/
+
+# Build output (rebuilt inside the container)
+dist/
+coverage/
+
+# Git
+.git/
+.gitignore
+
+# Dev tooling / docs
+.claude/
+docs/
+*.md
+
+# Test files
+**/*.spec.ts
+**/*.e2e-spec.ts
+test/
+
+# Secrets (injected at runtime via env_file / environment)
+.env
+.env.*
+!.env.example
+
+# OS artifacts
+.DS_Store
+*.log
+Thumbs.db

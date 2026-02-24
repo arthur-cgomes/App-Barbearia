@@ -27,14 +27,18 @@ import { GetAllServicesResponseDto } from './dto/get-all-service.dto';
 import { ServicesDto } from './dto/service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { ServicesService } from './service.service';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { UserTypeEnum } from '../common/enum/user-type.enum';
 
-@ApiBearerAuth()
 @ApiTags('Service')
 @Controller('service')
 export class ServicesController {
   constructor(private readonly servicesService: ServicesService) {}
 
-  @UseGuards(AuthGuard())
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
   @Post()
   @ApiOperation({
     summary: 'Cria um serviço',
@@ -47,7 +51,9 @@ export class ServicesController {
     return await this.servicesService.createService(createServiceDto);
   }
 
-  @UseGuards(AuthGuard())
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
   @Put('/:serviceId')
   @ApiOperation({
     summary: 'Atualiza um serviço',
@@ -73,8 +79,8 @@ export class ServicesController {
   })
   @ApiOkResponse({ type: ServicesDto })
   @ApiNotFoundResponse({ description: 'Serviço não encontrado' })
-  async getServiceById(@Param('id') id: string) {
-    return await this.servicesService.getServiceById(id);
+  async getServiceById(@Param('serviceId') serviceId: string) {
+    return await this.servicesService.getServiceById(serviceId);
   }
 
   @Get()
@@ -106,7 +112,9 @@ export class ServicesController {
     );
   }
 
-  @UseGuards(AuthGuard())
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
   @Delete('/:serviceId')
   @ApiOperation({
     summary: 'Exclui um serviço',

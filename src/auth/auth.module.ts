@@ -5,19 +5,23 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { PassportModule } from '@nestjs/passport';
 import { UserModule } from '../user/user.module';
+import { RolesGuard } from './guards/roles.guard';
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt', session: false }),
     JwtModule.register({
-      secret: process.env.AUTH_SECRET || 'sAhPJcFd',
+      secret: process.env.AUTH_SECRET,
       signOptions: {
-        expiresIn: '7200s',
+        expiresIn: (process.env.EXPIRE_IN
+          ? `${process.env.EXPIRE_IN}s`
+          : '7200s') as any,
       },
     }),
     UserModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, RolesGuard],
+  exports: [RolesGuard, PassportModule],
 })
 export class AuthModule {}

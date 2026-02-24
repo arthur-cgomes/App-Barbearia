@@ -1,6 +1,7 @@
 import {
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   BaseEntity,
   PrimaryGeneratedColumn,
   Column,
@@ -22,7 +23,7 @@ export abstract class BaseCollection extends BaseEntity {
   @CreateDateColumn({
     type: 'timestamp',
   })
-  createdAt: string;
+  createdAt: Date;
 
   @ApiProperty({
     description: 'Data de edição do registro',
@@ -31,7 +32,7 @@ export abstract class BaseCollection extends BaseEntity {
   @UpdateDateColumn({
     type: 'timestamp',
   })
-  updatedAt: string;
+  updatedAt: Date;
 
   @ApiProperty({
     description: 'Registro ativo ou não',
@@ -39,4 +40,12 @@ export abstract class BaseCollection extends BaseEntity {
   })
   @Column({ type: 'bool', default: true })
   active: boolean;
+
+  @ApiProperty({
+    description: 'Data de deleção lógica do registro',
+    type: Date,
+    nullable: true,
+  })
+  @DeleteDateColumn({ type: 'timestamp', nullable: true })
+  deletedAt: Date | null;
 }

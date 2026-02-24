@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, Max } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import { IsCpf } from '../../common/validators/is-cpf.validator';
 
 export class CreateBarberDto {
   @ApiProperty({
@@ -16,7 +17,7 @@ export class CreateBarberDto {
   })
   @IsNotEmpty()
   @IsString()
-  @Max(11)
+  @IsCpf()
   document: string;
 
   @ApiProperty({

@@ -12,12 +12,13 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { mockUser } from './mocks/user.mock';
 import { UserTypeEnum } from '../../common/enum/user-type.enum';
+import { AuditService } from '../../common/audit/audit.service';
 
 describe('UserService', () => {
   let service: UserService;
   let repositoryMock: MockRepository<Repository<User>>;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserService,
@@ -25,14 +26,16 @@ describe('UserService', () => {
           provide: getRepositoryToken(User),
           useValue: repositoryMockFactory<User>(),
         },
+        {
+          provide: AuditService,
+          useValue: { log: jest.fn() },
+        },
       ],
     }).compile();
 
     service = module.get<UserService>(UserService);
     repositoryMock = module.get(getRepositoryToken(User));
   });
-
-  beforeEach(() => jest.clearAllMocks());
 
   describe('checkUserToLogin', () => {
     it('Should successfully return user for a valid email', async () => {
@@ -44,7 +47,7 @@ describe('UserService', () => {
       expect(result).toStrictEqual(mockUser);
       expect(repositoryMock.findOne).toHaveBeenCalledWith({
         where: { email },
-        select: ['id', 'email', 'password'],
+        select: ['id', 'email', 'password', 'userType'],
       });
     });
 
@@ -58,7 +61,7 @@ describe('UserService', () => {
       );
       expect(repositoryMock.findOne).toHaveBeenCalledWith({
         where: { email },
-        select: ['id', 'email', 'password'],
+        select: ['id', 'email', 'password', 'userType'],
       });
     });
   });
@@ -77,8 +80,9 @@ describe('UserService', () => {
       expect(repositoryMock.findOne).toHaveBeenCalledWith({
         where: { birthdate, document },
       });
-      expect(mockUser.password).toBe(newPassword);
-      expect(repositoryMock.save).toHaveBeenCalledWith(mockUser);
+      expect(repositoryMock.save).toHaveBeenCalledWith(
+        expect.objectContaining({ password: newPassword }),
+      );
     });
 
     it('Should throw NotFoundException when user is not found', async () => {
@@ -168,6 +172,17 @@ describe('UserService', () => {
         service.updateUser(mockUser.id, updateUserDto),
       ).rejects.toStrictEqual(error);
       expect(repositoryMock.preload).not.toHaveBeenCalled();
+    });
+
+    it('Should throw NotFoundException when preload returns null', async () => {
+      const error = new NotFoundException('user with this id not found');
+
+      repositoryMock.findOne = jest.fn().mockReturnValue(mockUser);
+      repositoryMock.preload = jest.fn().mockReturnValue(null);
+
+      await expect(
+        service.updateUser(mockUser.id, updateUserDto),
+      ).rejects.toStrictEqual(error);
     });
   });
 
@@ -270,11 +285,14 @@ describe('UserService', () => {
   describe('deleteUserById', () => {
     it('Should successfully delete a user by id', async () => {
       repositoryMock.findOne = jest.fn().mockReturnValue(mockUser);
-      repositoryMock.remove = jest.fn();
+      repositoryMock.softRemove = jest.fn();
 
       const result = await service.deleteUserById(mockUser.id);
 
       expect(result).toStrictEqual('removed');
+      expect(repositoryMock.softRemove).toHaveBeenCalledWith(
+        expect.objectContaining({ active: false }),
+      );
     });
 
     it('Should throw the NotFoundException exception when user id not found', async () => {

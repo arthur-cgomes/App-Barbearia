@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Post,
   Put,
@@ -22,19 +23,27 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { DeleteResponseDto } from '../common/dto/delete-response.dto';
+import { BarberService } from '../barber/barber.service';
 import { BarberShopService } from './barber-shop.service';
 import { BarberShopDto } from './dto/barbershop.dto';
 import { CreateBarberShopDto } from './dto/create-barbershop.dto';
 import { GetAllBarberShopResponseDto } from './dto/get-all-barbershop.dto';
 import { UpdateBarberShopDto } from './dto/update-barbershop.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { UserTypeEnum } from '../common/enum/user-type.enum';
 
-@ApiBearerAuth()
 @ApiTags('Barber-Shop')
 @Controller('barbershop')
 export class BarberShopController {
-  constructor(private readonly barbershopService: BarberShopService) {}
+  constructor(
+    private readonly barbershopService: BarberShopService,
+    private readonly barberService: BarberService,
+  ) {}
 
-  @UseGuards(AuthGuard())
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
   @Post()
   @ApiOperation({
     summary: 'Cria uma barbearia',
@@ -47,7 +56,9 @@ export class BarberShopController {
     return await this.barbershopService.createBarberShop(createBarberShopDto);
   }
 
-  @UseGuards(AuthGuard())
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
   @Put('/:barbershopId')
   @ApiOperation({
     summary: 'Atualiza uma barbearia',
@@ -67,7 +78,7 @@ export class BarberShopController {
     );
   }
 
-  @Get('/:id')
+  @Get('/:barbershopId')
   @ApiOperation({
     summary: 'Retorna uma barbearia pelo id',
   })
@@ -106,7 +117,9 @@ export class BarberShopController {
     );
   }
 
-  @UseGuards(AuthGuard())
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
   @Delete('/:barbershopId')
   @ApiOperation({
     summary: 'Exclui uma barbearia',
@@ -119,5 +132,38 @@ export class BarberShopController {
     return {
       message: await this.barbershopService.deleteBarberShopById(barbershopId),
     };
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
+  @Post('/:barbershopId/barbers/:barberId')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Associa um barbeiro à barbearia' })
+  @ApiOkResponse({ type: BarberShopDto })
+  @ApiNotFoundResponse({ description: 'Barbearia ou barbeiro não encontrado' })
+  async addBarber(
+    @Param('barbershopId') barbershopId: string,
+    @Param('barberId') barberId: string,
+  ) {
+    const barber = await this.barberService.getBarberById(barberId);
+    return await this.barbershopService.addBarberToShop(barbershopId, barber);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RolesGuard)
+  @Roles(UserTypeEnum.ADMIN)
+  @Delete('/:barbershopId/barbers/:barberId')
+  @ApiOperation({ summary: 'Remove um barbeiro da barbearia' })
+  @ApiOkResponse({ type: BarberShopDto })
+  @ApiNotFoundResponse({ description: 'Barbearia não encontrada' })
+  async removeBarber(
+    @Param('barbershopId') barbershopId: string,
+    @Param('barberId') barberId: string,
+  ) {
+    return await this.barbershopService.removeBarberFromShop(
+      barbershopId,
+      barberId,
+    );
   }
 }

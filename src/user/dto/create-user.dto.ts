@@ -8,6 +8,7 @@ import {
   IsString,
 } from 'class-validator';
 import { UserTypeEnum } from 'src/common/enum/user-type.enum';
+import { IsCpf } from '../../common/validators/is-cpf.validator';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -32,6 +33,7 @@ export class CreateUserDto {
   })
   @IsNotEmpty()
   @IsString()
+  @IsCpf()
   document: string;
 
   @ApiProperty({
@@ -43,7 +45,7 @@ export class CreateUserDto {
   email: string;
 
   @ApiProperty({
-    description: 'Email do usuário',
+    description: 'Senha do usuário',
     type: String,
   })
   @IsNotEmpty()
@@ -60,7 +62,8 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'Tipo do usuário',
-    type: 'Enum',
+    enum: UserTypeEnum,
+    enumName: 'UserTypeEnum',
   })
   @IsOptional()
   @IsEnum(UserTypeEnum)

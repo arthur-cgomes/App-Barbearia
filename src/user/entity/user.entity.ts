@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Exclude } from 'class-transformer';
 import { BaseCollection } from '../../common/entity/base.entity';
 import {
   BeforeInsert,
@@ -44,10 +45,7 @@ export class User extends BaseCollection {
   @Column({ type: 'varchar', default: null, nullable: true })
   email: string;
 
-  @ApiProperty({
-    description: 'Senha do usuário',
-    type: String,
-  })
+  @Exclude()
   @Column({ type: 'varchar', default: null, nullable: true })
   password: string;
 
@@ -60,7 +58,8 @@ export class User extends BaseCollection {
 
   @ApiProperty({
     description: 'Tipo do usuário',
-    type: 'Enum',
+    enum: UserTypeEnum,
+    enumName: 'UserTypeEnum',
   })
   @Column({ type: 'varchar', default: UserTypeEnum.USER })
   userType: UserTypeEnum;

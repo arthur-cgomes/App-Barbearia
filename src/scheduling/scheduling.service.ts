@@ -7,12 +7,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { BarberShopService } from '../barber-shop/barber-shop.service';
 import { ServicesService } from '../service/service.service';
 import { UserService } from '../user/user.service';
-import { FindManyOptions, Repository } from 'typeorm';
+import { FindManyOptions, LessThan, MoreThan, Repository } from 'typeorm';
 import { Scheduling } from './entity/scheduling.entity';
 import { CreateSchedulingDto } from './dto/create-scheduling.dto';
 import { GetAllSchedulingResponseDto } from './dto/get-all-scheduling-response.dto';
 import { UpdateSchedulingDto } from './dto/update-scheduling.dto';
 import { BarberService } from '../barber/barber.service';
+import { AuditService } from '../common/audit/audit.service';
+import { SchedulingStatus } from '../common/enum/scheduling-status.enum';
+import { UserTypeEnum } from '../common/enum/user-type.enum';
 
 @Injectable()
 export class SchedulingService {
@@ -23,6 +26,7 @@ export class SchedulingService {
     private readonly servicesService: ServicesService,
     @InjectRepository(Scheduling)
     private readonly schedulingRepository: Repository<Scheduling>,
+    private readonly auditService: AuditService,
   ) {}
 
   public async createScheduling(
@@ -37,11 +41,17 @@ export class SchedulingService {
       this.servicesService.getServiceById(createSchedulingDto.serviceId),
     ]);
 
+    const appointmentStart = new Date(createSchedulingDto.date);
+    const durationMs = (service.durationMinutes ?? 60) * 60 * 1000;
+    const appointmentEnd = new Date(appointmentStart.getTime() + durationMs);
+
     const checkScheduling = await this.schedulingRepository.findOne({
       where: [
         {
-          date: createSchedulingDto.date,
           barbershop: { id: createSchedulingDto.barberShopId },
+          barber: { id: createSchedulingDto.barberId },
+          date: MoreThan(new Date(appointmentStart.getTime() - durationMs)),
+          endTime: LessThan(appointmentEnd),
         },
       ],
     });
@@ -55,9 +65,18 @@ export class SchedulingService {
     scheduling.barbershop = barbershop;
     scheduling.barber = barber;
     scheduling.services = [service];
-    scheduling.date = createSchedulingDto.date;
+    scheduling.date = appointmentStart;
+    scheduling.endTime = appointmentEnd;
+    scheduling.status = SchedulingStatus.PENDING;
 
-    return await this.schedulingRepository.create(scheduling).save();
+    const saved = await this.schedulingRepository.create(scheduling).save();
+    this.auditService.log('SCHEDULING_CREATED', user.id, {
+      schedulingId: saved.id,
+      barbershopId: barbershop.id,
+      barberId: barber.id,
+      date: saved.date,
+    });
+    return saved;
   }
 
   public async updateScheduling(
@@ -66,12 +85,16 @@ export class SchedulingService {
   ): Promise<Scheduling> {
     await this.getSchedulingById(schedulingId);
 
-    return await (
-      await this.schedulingRepository.preload({
-        id: schedulingId,
-        ...updateSchedulingDto,
-      })
-    ).save();
+    const preloaded = await this.schedulingRepository.preload({
+      id: schedulingId,
+      ...updateSchedulingDto,
+    });
+
+    if (!preloaded) {
+      throw new NotFoundException('scheduling with this id not found');
+    }
+
+    return await preloaded.save();
   }
 
   public async getSchedulingById(schedulingId: string): Promise<Scheduling> {
@@ -94,6 +117,9 @@ export class SchedulingService {
     userId?: string,
     barberId?: string,
     barberShopId?: string,
+    status?: SchedulingStatus,
+    requesterUserId?: string,
+    requesterRole?: UserTypeEnum,
   ): Promise<GetAllSchedulingResponseDto> {
     const conditions: FindManyOptions<Scheduling> = {
       take,
@@ -101,24 +127,47 @@ export class SchedulingService {
       order: {
         [sort]: order,
       },
+      where: {},
     };
 
-    if (userId) {
-      conditions.where = { id: userId };
+    // RBAC: regular users only see their own schedulings
+    if (requesterRole === UserTypeEnum.USER && requesterUserId) {
+      conditions.where = {
+        ...(conditions.where as object),
+        user: { id: requesterUserId },
+      };
+    } else if (userId) {
+      conditions.where = {
+        ...(conditions.where as object),
+        user: { id: userId },
+      };
     }
 
     if (barberId) {
-      conditions.where = { barber: { id: barberId } };
+      conditions.where = {
+        ...(conditions.where as object),
+        barber: { id: barberId },
+      };
     }
 
     if (barberShopId) {
-      conditions.where = { barbershop: { id: barberShopId } };
+      conditions.where = {
+        ...(conditions.where as object),
+        barbershop: { id: barberShopId },
+      };
+    }
+
+    if (status) {
+      conditions.where = {
+        ...(conditions.where as object),
+        status,
+      };
     }
 
     const [scheduling, count] =
       await this.schedulingRepository.findAndCount(conditions);
 
-    if (scheduling.length == 0) {
+    if (scheduling.length === 0) {
       return { skip: null, total: 0, schedulings: [] };
     }
     const over = count - Number(take) - Number(skip);
@@ -129,7 +178,12 @@ export class SchedulingService {
 
   public async deleteSchedulingById(schedulingId: string): Promise<string> {
     const deleteScheduling = await this.getSchedulingById(schedulingId);
-    await this.schedulingRepository.remove(deleteScheduling);
+    deleteScheduling.active = false;
+    deleteScheduling.status = SchedulingStatus.CANCELLED;
+    await this.schedulingRepository.softRemove(deleteScheduling);
+    this.auditService.log('SCHEDULING_CANCELLED', schedulingId, {
+      date: deleteScheduling.date,
+    });
 
     return 'removed';
   }

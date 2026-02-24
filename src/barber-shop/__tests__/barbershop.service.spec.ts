@@ -11,6 +11,8 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { UpdateBarberShopDto } from '../dto/update-barbershop.dto';
 import { BarberShop } from '../entity/barber-shop.entity';
 import { mockBarberShop } from './mocks/barbershop.mock';
+import { AuditService } from '../../common/audit/audit.service';
+import { mockBarber } from '../../barber/__tests__/mocks/barber.mock';
 
 describe('BarberShopService', () => {
   let service: BarberShopService;
@@ -23,6 +25,10 @@ describe('BarberShopService', () => {
         {
           provide: getRepositoryToken(BarberShop),
           useValue: repositoryMockFactory<BarberShop>(),
+        },
+        {
+          provide: AuditService,
+          useValue: { log: jest.fn() },
         },
       ],
     }).compile();
@@ -38,8 +44,8 @@ describe('BarberShopService', () => {
       name: 'Teste',
       document: '62780460000137',
       address: 'adress',
-      lat: 'lat',
-      long: 'long',
+      lat: -19.9191,
+      long: -43.9386,
       cellphone: 'phone',
       email: 'email',
     };
@@ -75,8 +81,8 @@ describe('BarberShopService', () => {
       name: 'Teste',
       document: '62780460000137',
       address: 'adress',
-      lat: 'lat',
-      long: 'long',
+      lat: -19.9191,
+      long: -43.9386,
       cellphone: 'phone',
       email: 'email',
     };
@@ -108,6 +114,17 @@ describe('BarberShopService', () => {
         service.updateBarberShop(mockBarberShop.id, updateBarberShopDto),
       ).rejects.toStrictEqual(error);
       expect(repositoryMock.preload).not.toHaveBeenCalled();
+    });
+
+    it('Should throw NotFoundException when preload returns null', async () => {
+      const error = new NotFoundException('barbershop with this id not found');
+
+      repositoryMock.findOne = jest.fn().mockReturnValue(mockBarberShop);
+      repositoryMock.preload = jest.fn().mockReturnValue(null);
+
+      await expect(
+        service.updateBarberShop(mockBarberShop.id, updateBarberShopDto),
+      ).rejects.toStrictEqual(error);
     });
   });
 
@@ -152,6 +169,7 @@ describe('BarberShopService', () => {
         take,
         skip,
         order: expect.any(Object),
+        where: {},
       };
 
       repositoryMock.findAndCount = jest
@@ -256,6 +274,7 @@ describe('BarberShopService', () => {
         take,
         skip,
         order: expect.any(Object),
+        where: {},
       };
 
       repositoryMock.findAndCount = jest.fn().mockReturnValue([[], 0]);
@@ -348,11 +367,14 @@ describe('BarberShopService', () => {
   describe('deleteBarberShopById', () => {
     it('Should successfully delete a barbershop', async () => {
       repositoryMock.findOne = jest.fn().mockReturnValue(mockBarberShop);
-      repositoryMock.remove = jest.fn();
+      repositoryMock.softRemove = jest.fn();
 
       const result = await service.deleteBarberShopById(mockBarberShop.id);
 
       expect(result).toStrictEqual('removed');
+      expect(repositoryMock.softRemove).toHaveBeenCalledWith(
+        expect.objectContaining({ active: false }),
+      );
     });
 
     it('Should throw a NotFoundException if barbershop does not exist', async () => {
@@ -362,6 +384,114 @@ describe('BarberShopService', () => {
 
       await expect(
         service.deleteBarberShopById(mockBarberShop.id),
+      ).rejects.toStrictEqual(error);
+    });
+  });
+
+  describe('addBarberToShop', () => {
+    it('Should successfully add a barber to a barbershop', async () => {
+      const barbershopWithBarbers = { ...mockBarberShop, barber: [] };
+      repositoryMock.findOne = jest.fn().mockReturnValue(barbershopWithBarbers);
+      repositoryMock.save = jest
+        .fn()
+        .mockReturnValue({ ...barbershopWithBarbers, barber: [mockBarber] });
+
+      const result = await service.addBarberToShop(
+        mockBarberShop.id,
+        mockBarber,
+      );
+
+      expect(result.barber).toContain(mockBarber);
+      expect(repositoryMock.save).toHaveBeenCalled();
+    });
+
+    it('Should initialize barber array when it is null and add barber', async () => {
+      const barbershopWithNullBarbers = { ...mockBarberShop, barber: null };
+      repositoryMock.findOne = jest
+        .fn()
+        .mockReturnValue(barbershopWithNullBarbers);
+      repositoryMock.save = jest
+        .fn()
+        .mockReturnValue({ ...mockBarberShop, barber: [mockBarber] });
+
+      const result = await service.addBarberToShop(
+        mockBarberShop.id,
+        mockBarber,
+      );
+
+      expect(repositoryMock.save).toHaveBeenCalled();
+      expect(result.barber).toContain(mockBarber);
+    });
+
+    it('Should not add barber if already associated', async () => {
+      const barbershopWithBarbers = {
+        ...mockBarberShop,
+        barber: [mockBarber],
+      };
+      repositoryMock.findOne = jest.fn().mockReturnValue(barbershopWithBarbers);
+      repositoryMock.save = jest.fn().mockReturnValue(barbershopWithBarbers);
+
+      await service.addBarberToShop(mockBarberShop.id, mockBarber);
+
+      expect(repositoryMock.save).toHaveBeenCalledWith(
+        expect.objectContaining({ barber: [mockBarber] }),
+      );
+    });
+
+    it('Should throw NotFoundException when barbershop not found', async () => {
+      const error = new NotFoundException('barbershop with this id not found');
+      repositoryMock.findOne = jest.fn().mockReturnValue(null);
+
+      await expect(
+        service.addBarberToShop(mockBarberShop.id, mockBarber),
+      ).rejects.toStrictEqual(error);
+    });
+  });
+
+  describe('removeBarberFromShop', () => {
+    it('Should successfully remove a barber from a barbershop', async () => {
+      const barbershopWithBarbers = {
+        ...mockBarberShop,
+        barber: [mockBarber],
+      };
+      repositoryMock.findOne = jest.fn().mockReturnValue(barbershopWithBarbers);
+      repositoryMock.save = jest
+        .fn()
+        .mockReturnValue({ ...barbershopWithBarbers, barber: [] });
+
+      const result = await service.removeBarberFromShop(
+        mockBarberShop.id,
+        mockBarber.id,
+      );
+
+      expect(result.barber).toEqual([]);
+      expect(repositoryMock.save).toHaveBeenCalled();
+    });
+
+    it('Should handle null barber array gracefully when removing', async () => {
+      const barbershopWithNullBarbers = { ...mockBarberShop, barber: null };
+      repositoryMock.findOne = jest
+        .fn()
+        .mockReturnValue(barbershopWithNullBarbers);
+      repositoryMock.save = jest
+        .fn()
+        .mockReturnValue({ ...mockBarberShop, barber: [] });
+
+      const result = await service.removeBarberFromShop(
+        mockBarberShop.id,
+        mockBarber.id,
+      );
+
+      expect(result.barber).toEqual([]);
+      expect(repositoryMock.save).toHaveBeenCalled();
+    });
+
+    it('Should throw NotFoundException when barbershop not found', async () => {
+      const error = new NotFoundException('barbershop with this id not found');
+      repositoryMock.findOne = jest.fn().mockReturnValue(null);
+
+      await expect(
+        service.removeBarberFromShop(mockBarberShop.id, mockBarber.id),
       ).rejects.toStrictEqual(error);
     });
   });

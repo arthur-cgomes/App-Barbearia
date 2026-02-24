@@ -5,6 +5,8 @@ import {
   repositoryMockFactory,
 } from '../../common/mock/test.util';
 import { FindManyOptions, Repository } from 'typeorm';
+import { UserTypeEnum } from '../../common/enum/user-type.enum';
+import { SchedulingStatus } from '../../common/enum/scheduling-status.enum';
 import { Scheduling } from '../entity/scheduling.entity';
 import { SchedulingService } from '../scheduling.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -21,6 +23,7 @@ import { BarberService } from '../../barber/barber.service';
 import { ConflictException } from '@nestjs/common/exceptions';
 import { mockScheduling } from './mocks/scheduling.mock';
 import { mockUser } from '../../auth/__tests__/mocks/auth.mock';
+import { AuditService } from '../../common/audit/audit.service';
 import { mockBarberShop } from '../../barber-shop/__tests__/mocks/barbershop.mock';
 import { mockBarber } from '../../barber/__tests__/mocks/barber.mock';
 import { mockService } from '../../service/__tests__/mocks/service.mock';
@@ -61,6 +64,10 @@ describe('SchedulingService', () => {
         {
           provide: getRepositoryToken(Service),
           useValue: repositoryMockFactory<Service>(),
+        },
+        {
+          provide: AuditService,
+          useValue: { log: jest.fn() },
         },
       ],
     }).compile();
@@ -104,13 +111,15 @@ describe('SchedulingService', () => {
 
       expect(result).toEqual(mockScheduling);
 
-      expect(repositoryMock.create).toHaveBeenCalledWith({
-        user: mockUser,
-        barbershop: mockBarberShop,
-        barber: mockBarber,
-        services: [mockService],
-        date: createSchedulingDto.date,
-      });
+      expect(repositoryMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user: mockUser,
+          barbershop: mockBarberShop,
+          barber: mockBarber,
+          services: [mockService],
+          status: 'pending',
+        }),
+      );
     });
 
     it('Should throw the NotFoundException exception when user not found', async () => {
@@ -119,6 +128,13 @@ describe('SchedulingService', () => {
       repositoryMock.findOne = jest.fn();
 
       jest.spyOn(userService, 'getUserById').mockRejectedValue(error);
+      jest
+        .spyOn(barberShopService, 'getBarberShopById')
+        .mockResolvedValue(mockBarberShop);
+      jest.spyOn(barberService, 'getBarberById').mockResolvedValue(mockBarber);
+      jest
+        .spyOn(servicesService, 'getServiceById')
+        .mockResolvedValue(mockService);
 
       await expect(
         service.createScheduling(createSchedulingDto),
@@ -135,6 +151,10 @@ describe('SchedulingService', () => {
       jest
         .spyOn(barberShopService, 'getBarberShopById')
         .mockRejectedValue(error);
+      jest.spyOn(barberService, 'getBarberById').mockResolvedValue(mockBarber);
+      jest
+        .spyOn(servicesService, 'getServiceById')
+        .mockResolvedValue(mockService);
 
       await expect(
         service.createScheduling(createSchedulingDto),
@@ -152,6 +172,9 @@ describe('SchedulingService', () => {
         .spyOn(barberShopService, 'getBarberShopById')
         .mockResolvedValue(mockBarberShop);
       jest.spyOn(barberService, 'getBarberById').mockRejectedValue(error);
+      jest
+        .spyOn(servicesService, 'getServiceById')
+        .mockResolvedValue(mockService);
 
       await expect(
         service.createScheduling(createSchedulingDto),
@@ -182,10 +205,45 @@ describe('SchedulingService', () => {
 
       repositoryMock.findOne = jest.fn().mockReturnValue(mockScheduling);
 
+      jest.spyOn(userService, 'getUserById').mockResolvedValue(mockUser);
+      jest
+        .spyOn(barberShopService, 'getBarberShopById')
+        .mockResolvedValue(mockBarberShop);
+      jest.spyOn(barberService, 'getBarberById').mockResolvedValue(mockBarber);
+      jest
+        .spyOn(servicesService, 'getServiceById')
+        .mockResolvedValue(mockService);
+
       await expect(
         service.createScheduling(createSchedulingDto),
       ).rejects.toStrictEqual(error);
       expect(repositoryMock.create).not.toHaveBeenCalled();
+    });
+
+    it('Should default to 60 minutes duration when service has no durationMinutes', async () => {
+      const serviceWithoutDuration = { ...mockService, durationMinutes: null };
+      repositoryMock.findOne = jest.fn();
+      repositoryMock.create = jest
+        .fn()
+        .mockReturnValue({ save: () => mockScheduling });
+
+      jest.spyOn(userService, 'getUserById').mockResolvedValue(mockUser);
+      jest
+        .spyOn(barberShopService, 'getBarberShopById')
+        .mockResolvedValue(mockBarberShop);
+      jest.spyOn(barberService, 'getBarberById').mockResolvedValue(mockBarber);
+      jest
+        .spyOn(servicesService, 'getServiceById')
+        .mockResolvedValue(serviceWithoutDuration as any);
+
+      const result = await service.createScheduling(createSchedulingDto);
+
+      expect(result).toEqual(mockScheduling);
+      expect(repositoryMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'pending',
+        }),
+      );
     });
   });
   describe('updateScheduling', () => {
@@ -224,6 +282,17 @@ describe('SchedulingService', () => {
       ).rejects.toStrictEqual(error);
       expect(repositoryMock.preload).not.toHaveBeenCalled();
     });
+
+    it('Should throw NotFoundException when preload returns null', async () => {
+      const error = new NotFoundException('scheduling with this id not found');
+
+      repositoryMock.findOne = jest.fn().mockReturnValue(mockScheduling);
+      repositoryMock.preload = jest.fn().mockReturnValue(null);
+
+      await expect(
+        service.updateScheduling(mockScheduling.id, updateSchedulingDto),
+      ).rejects.toStrictEqual(error);
+    });
   });
 
   describe('getSchedulingById', () => {
@@ -259,6 +328,7 @@ describe('SchedulingService', () => {
         order: {
           [sort]: order,
         },
+        where: {},
       };
       repositoryMock.findAndCount = jest
         .fn()
@@ -287,7 +357,7 @@ describe('SchedulingService', () => {
         order: {
           [sort]: order,
         },
-        where: { id: userId },
+        where: { user: { id: userId } },
       };
 
       repositoryMock.findAndCount = jest
@@ -397,6 +467,7 @@ describe('SchedulingService', () => {
         order: {
           [sort]: order,
         },
+        where: {},
       };
 
       repositoryMock.findAndCount = jest.fn().mockReturnValue([[], 0]);
@@ -423,6 +494,7 @@ describe('SchedulingService', () => {
         order: {
           [sort]: order,
         },
+        where: {},
       };
 
       repositoryMock.findAndCount = jest
@@ -451,6 +523,7 @@ describe('SchedulingService', () => {
         order: {
           [sort]: order,
         },
+        where: {},
       };
 
       repositoryMock.findAndCount = jest
@@ -466,16 +539,95 @@ describe('SchedulingService', () => {
       });
       expect(repositoryMock.findAndCount).toHaveBeenCalledWith(conditions);
     });
+
+    it('Should apply RBAC filter when requester is USER role', async () => {
+      const take = 10;
+      const skip = 0;
+      const sort = 'date';
+      const order = 'ASC';
+      const requesterUserId = 'userId';
+
+      const conditions: FindManyOptions<Scheduling> = {
+        take,
+        skip,
+        order: { [sort]: order },
+        where: { user: { id: requesterUserId } },
+      };
+
+      repositoryMock.findAndCount = jest
+        .fn()
+        .mockReturnValue([[mockScheduling], 1]);
+
+      const result = await service.getAllSchedulings(
+        take,
+        skip,
+        sort,
+        order,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        requesterUserId,
+        UserTypeEnum.USER,
+      );
+
+      expect(result).toStrictEqual({
+        skip: null,
+        total: 1,
+        schedulings: [mockScheduling],
+      });
+      expect(repositoryMock.findAndCount).toHaveBeenCalledWith(conditions);
+    });
+
+    it('Should filter by status when status is provided', async () => {
+      const take = 10;
+      const skip = 0;
+      const sort = 'date';
+      const order = 'ASC';
+      const status = SchedulingStatus.PENDING;
+
+      const conditions: FindManyOptions<Scheduling> = {
+        take,
+        skip,
+        order: { [sort]: order },
+        where: { status },
+      };
+
+      repositoryMock.findAndCount = jest
+        .fn()
+        .mockReturnValue([[mockScheduling], 1]);
+
+      const result = await service.getAllSchedulings(
+        take,
+        skip,
+        sort,
+        order,
+        undefined,
+        undefined,
+        undefined,
+        status,
+      );
+
+      expect(result).toStrictEqual({
+        skip: null,
+        total: 1,
+        schedulings: [mockScheduling],
+      });
+      expect(repositoryMock.findAndCount).toHaveBeenCalledWith(conditions);
+    });
   });
 
   describe('deleteSchedulingById', () => {
     it('Should successfully delete a scheduling', async () => {
       repositoryMock.findOne = jest.fn().mockReturnValue(mockScheduling);
-      repositoryMock.remove = jest.fn();
+      repositoryMock.softRemove = jest.fn();
 
       const result = await service.deleteSchedulingById(mockScheduling.id);
 
       expect(result).toStrictEqual('removed');
+      expect(repositoryMock.softRemove).toHaveBeenCalledWith(
+        expect.objectContaining({ active: false }),
+      );
     });
 
     it('Should throw the NotFoundException exception when scheduling not found', async () => {

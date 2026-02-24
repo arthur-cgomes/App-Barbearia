@@ -9,12 +9,14 @@ import { CreateBarberDto } from './dto/create-barber.dto';
 import { GetAllBarbersResponseDto } from './dto/get-all-barber-response.dto';
 import { UpdateBarberDto } from './dto/update-barber.dto';
 import { Barber } from './entity/barber.entity';
+import { AuditService } from '../common/audit/audit.service';
 
 @Injectable()
 export class BarberService {
   constructor(
     @InjectRepository(Barber)
     private readonly barberRepository: Repository<Barber>,
+    private readonly auditService: AuditService,
   ) {}
 
   public async createBarber(createBarberDto: CreateBarberDto): Promise<Barber> {
@@ -35,12 +37,16 @@ export class BarberService {
   ): Promise<Barber> {
     await this.getBarberById(barberId);
 
-    return await (
-      await this.barberRepository.preload({
-        id: barberId,
-        ...updateBarberDto,
-      })
-    ).save();
+    const preloaded = await this.barberRepository.preload({
+      id: barberId,
+      ...updateBarberDto,
+    });
+
+    if (!preloaded) {
+      throw new NotFoundException('barber id not found');
+    }
+
+    return await preloaded.save();
   }
 
   public async getBarberById(barberId: string): Promise<Barber> {
@@ -69,20 +75,27 @@ export class BarberService {
       order: {
         [sort]: order,
       },
+      where: {},
     };
 
     if (barbershopId) {
-      conditions.where = { barbershop: { id: barbershopId } };
+      conditions.where = {
+        ...(conditions.where as object),
+        barbershop: { id: barbershopId },
+      };
     }
 
     if (search) {
-      conditions.where = { name: ILike('%' + search + '%') };
+      conditions.where = {
+        ...(conditions.where as object),
+        name: ILike('%' + search + '%'),
+      };
     }
 
     const [barber, count] =
       await this.barberRepository.findAndCount(conditions);
 
-    if (barber.length == 0) {
+    if (barber.length === 0) {
       return { skip: null, total: 0, barbers: [] };
     }
     const over = count - Number(take) - Number(skip);
@@ -93,7 +106,9 @@ export class BarberService {
 
   public async deleteBarberById(barberId: string): Promise<string> {
     const barber = await this.getBarberById(barberId);
-    await this.barberRepository.remove(barber);
+    barber.active = false;
+    await this.barberRepository.softRemove(barber);
+    this.auditService.log('BARBER_DELETED', barberId, { name: barber.name });
 
     return 'removed';
   }

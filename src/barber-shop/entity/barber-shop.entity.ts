@@ -39,17 +39,29 @@ export class BarberShop extends BaseCollection {
 
   @ApiProperty({
     description: 'Latitude da barbearia',
-    type: String,
+    type: Number,
   })
-  @Column({ type: 'varchar', default: null, nullable: true })
-  lat: string;
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 7,
+    default: null,
+    nullable: true,
+  })
+  lat: number;
 
   @ApiProperty({
     description: 'Longitude da barbearia',
-    type: String,
+    type: Number,
   })
-  @Column({ type: 'varchar', default: null, nullable: true })
-  long: string;
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 7,
+    default: null,
+    nullable: true,
+  })
+  long: number;
 
   @ApiProperty({
     description: 'Número da barbearia',
@@ -70,14 +82,14 @@ export class BarberShop extends BaseCollection {
     type: () => User,
   })
   @OneToMany(() => User, (user) => user.barbershops)
-  user: User;
+  user: User[];
 
   @ApiProperty({
     description: 'Relacionamento com a tabela Scheduling',
     type: () => Scheduling,
   })
   @OneToMany(() => Scheduling, (scheduling) => scheduling.barbershop)
-  scheduling: Scheduling;
+  scheduling: Scheduling[];
 
   @ApiProperty({
     description: 'Relacionamento com a tabela Barber',
